@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import shutil
 import subprocess
 import sys
 import urllib.parse
@@ -38,21 +39,28 @@ def search(query: str) -> None:
     print(json.dumps({"query": query, "results": results}, ensure_ascii=False))
 
 
-def spotify_uri(url: str) -> str:
+def spotify_links(url: str) -> tuple[str, str]:
     params = urllib.parse.urlencode({"url": url, "userCountry": "US"})
     data = fetch_json(f"https://api.song.link/v1-alpha.1/links?{params}")
     spotify = data.get("linksByPlatform", {}).get("spotify", {}).get("url", "")
     if "/track/" not in spotify:
-        return ""
-    return "spotify:track:" + spotify.split("/track/", 1)[1].split("?", 1)[0]
+        return "", ""
+    track_id = spotify.split("/track/", 1)[1].split("?", 1)[0]
+    return "spotify:track:" + track_id, spotify
 
 
 def open_spotify(url: str, query: str) -> None:
     try:
-        uri = spotify_uri(url)
+        uri, web_url = spotify_links(url)
     except Exception:
-        uri = ""
+        uri, web_url = "", ""
     uri = uri or "spotify:search:" + query
+    web_url = web_url or "https://open.spotify.com/search/" + urllib.parse.quote(query)
+
+    if not shutil.which("spotify"):
+        subprocess.Popen(["xdg-open", web_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return
+
     call = [
         "gdbus", "call", "--session",
         "--dest", "org.mpris.MediaPlayer2.spotify",

@@ -14,7 +14,7 @@ A focused media-player enhancement for [Caelestia Shell](https://github.com/cael
 
 ## How search works
 
-Search metadata comes from Apple's public iTunes Search API. Selecting a result sends its Apple Music URL to Songlink/Odesli to resolve the equivalent track for the selected provider. Spotify tracks are sent to the running client through MPRIS; YouTube Music and Deezer links open through the desktop URL handler.
+Search metadata comes from Apple's public iTunes Search API. Selecting a result sends its Apple Music URL to Songlink/Odesli to resolve the equivalent track for the selected provider. Spotify tracks are sent to the installed client through MPRIS. If the Spotify client is not installed, the exact track opens in the default browser instead. YouTube Music and Deezer use their HTTPS links, so the desktop opens an installed handler when available and otherwise falls back to the browser.
 
 Songlink's public `v1-alpha.1` endpoint is scheduled for retirement on July 31, 2026. The helper falls back to a provider search URL when exact cross-platform resolution is unavailable.
 
