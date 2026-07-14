@@ -1,0 +1,15 @@
+*
+!.gitignore
+!LICENSE
+!README.md
+!install.sh
+!uninstall.sh
+!src/
+!src/modules/
+!src/modules/dashboard/
+!src/modules/dashboard/Media.qml
+!src/modules/dashboard/media/
+!src/modules/dashboard/media/Details.qml
+!src/modules/dashboard/media/SearchOverlay.qml
+!src/scripts/
+!src/scripts/music_search.py
