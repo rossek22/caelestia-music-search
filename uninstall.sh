@@ -76,24 +76,46 @@ fi
 rm -rf "$STATE_DIR"
 
 stop_caelestia_instances() {
-    local quickshell_command instance
+    local quickshell_command pid attempt
     quickshell_command=$(command -v quickshell || command -v qs || true)
     [[ -n "$quickshell_command" ]] || return 0
-    while IFS= read -r instance; do
-        [[ -n "$instance" ]] || continue
-        "$quickshell_command" kill --id "$instance" --any-display >/dev/null 2>&1 || true
+    while IFS= read -r pid; do
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        kill "$pid" >/dev/null 2>&1 || true
     done < <(
         "$quickshell_command" list --all 2>/dev/null \
-            | awk '/^Instance / { id=$2; sub(":$", "", id) } /Config path: .*\/caelestia\/shell.qml$/ { print id }'
+            | awk '/Process ID:/ { pid=$3 } /Config path: .*\/caelestia\/shell.qml"?$/ { print pid }'
+    )
+    for attempt in {1..20}; do
+        sleep 0.1
+        [[ $(count_caelestia_instances "$quickshell_command") -eq 0 ]] && return 0
+    done
+    while IFS= read -r pid; do
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        kill -KILL "$pid" >/dev/null 2>&1 || true
+    done < <(
+        "$quickshell_command" list --all 2>/dev/null \
+            | awk '/Process ID:/ { pid=$3 } /Config path: .*\/caelestia\/shell.qml"?$/ { print pid }'
     )
 }
 
+count_caelestia_instances() {
+    local quickshell_command=$1
+    "$quickshell_command" list --all 2>/dev/null \
+        | awk '/Config path: .*\/caelestia\/shell.qml"?$/ { count++ } END { print count+0 }'
+}
+
 stop_caelestia_instances
-if command -v caelestia >/dev/null 2>&1; then
-    caelestia shell -d >/dev/null 2>&1 || true
-else
-    quickshell_command=$(command -v quickshell || command -v qs || true)
-    [[ -z "$quickshell_command" ]] || "$quickshell_command" -d -c caelestia >/dev/null 2>&1 || true
+quickshell_command=$(command -v quickshell || command -v qs || true)
+if [[ -n "$quickshell_command" ]]; then
+    "$quickshell_command" --no-duplicate --daemonize --config caelestia >/dev/null 2>&1 || true
+    sleep 0.5
+    shell_count=$(count_caelestia_instances "$quickshell_command")
+    echo "    running Caelestia instances: $shell_count"
+    if [[ "$shell_count" -ne 1 ]]; then
+        echo "Warning: expected one Caelestia instance, found $shell_count." >&2
+        echo "Run 'qs list --all' to inspect the remaining instances." >&2
+    fi
 fi
 
 echo "Caelestia Music Search uninstalled successfully."
