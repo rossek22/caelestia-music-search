@@ -30,6 +30,14 @@ Songlink's public `v1-alpha.1` endpoint is scheduled for retirement on July 31, 
 
 ## Install
 
+Install directly with curl:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rossek22/caelestia-music-search/main/bootstrap.sh | bash
+```
+
+Or clone the repository manually:
+
 ```bash
 git clone https://github.com/rossek22/caelestia-music-search.git
 cd caelestia-music-search
