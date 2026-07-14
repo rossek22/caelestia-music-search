@@ -15,11 +15,11 @@ A focused media-player enhancement for [Caelestia Shell](https://github.com/cael
 
 ## How search works
 
-Search metadata comes from Apple's public iTunes Search API. Provider links for the first results are resolved and cached in the background while the result list is visible, so selecting a prepared track does not wait for another network round trip.
+Search results now come from the selected provider rather than from a shared catalogue. If a provider blocks anonymous catalogue access in the current region, the result opens that provider's own search page; results are never silently taken from another service.
 
-- Spotify uses Songlink/Odesli for exact cross-platform matching and sends the resulting track URI to the installed client through MPRIS. If the client is not installed, the exact web track opens in the default browser.
-- YouTube Music resolves a concrete video ID and opens a `/watch?v=...` URL, which starts the selected track instead of displaying another search page.
-- Deezer searches its catalog directly and opens the exact track URL.
+- Spotify uses iTunes metadata for its result list. With the Spotify desktop client installed, the selected result is resolved to Spotify and sent to the client through MPRIS; without the client, its iTunes page opens.
+- YouTube Music searches its own song catalogue through the web client's Innertube endpoint and opens the selected `/watch?v=...` URL.
+- Deezer searches its catalogue directly and opens the exact track URL.
 
 YouTube Music and Deezer use HTTPS links, so the desktop opens an installed handler when available and otherwise falls back to the browser.
 

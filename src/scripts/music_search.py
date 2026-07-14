@@ -15,14 +15,34 @@ USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safa
 CACHE_PATH = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "caelestia" / "music-links.json"
 
 
-def fetch_text(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.8"})
+def fetch_text(url: str, headers: dict | None = None) -> str:
+    request_headers = {"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.8"}
+    request_headers.update(headers or {})
+    request = urllib.request.Request(url, headers=request_headers)
     with urllib.request.urlopen(request, timeout=6) as response:
         return response.read().decode("utf-8", "replace")
 
 
-def fetch_json(url: str) -> dict:
-    return json.loads(fetch_text(url))
+def fetch_json(url: str, headers: dict | None = None) -> dict:
+    return json.loads(fetch_text(url, headers))
+
+
+def post_json(url: str, payload: dict, headers: dict | None = None) -> dict:
+    request_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.8",
+        "Content-Type": "application/json",
+        "Origin": "https://music.youtube.com",
+    }
+    request_headers.update(headers or {})
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers=request_headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8", "replace"))
 
 
 def load_cache() -> dict:
@@ -63,6 +83,14 @@ def deezer_url(query: str) -> str:
 
 
 def resolve_target(provider: str, url: str, query: str) -> str:
+    native_hosts = {
+        "spotify": "open.spotify.com/",
+        "youtube": "music.youtube.com/",
+        "deezer": "deezer.com/",
+    }
+    if native_hosts[provider] in url:
+        return url
+
     key = cache_key(provider, url)
     cache = load_cache()
     if cache.get(key):
@@ -97,26 +125,116 @@ def prefetch(provider: str, tracks: list[dict]) -> None:
             continue
 
 
-def search(query: str, provider: str) -> None:
+def spotify_search(query: str) -> list[dict]:
+    # Spotify no longer exposes a working anonymous catalogue token. iTunes is
+    # used only as metadata lookup; play() resolves the selected result to
+    # Spotify when the desktop client is installed.
     params = urllib.parse.urlencode({
-        "term": query,
-        "media": "music",
-        "entity": "song",
-        "limit": 8,
-        "country": "US",
+        "term": query, "media": "music", "entity": "song", "limit": 8, "country": "US",
     })
-    data = fetch_json(f"https://itunes.apple.com/search?{params}")
+    tracks = fetch_json(f"https://itunes.apple.com/search?{params}").get("results", [])
+    return [{
+        "title": track.get("trackName", ""),
+        "artist": track.get("artistName", ""),
+        "album": track.get("collectionName", ""),
+        "artwork": track.get("artworkUrl100", "").replace("100x100", "200x200"),
+        "url": track.get("trackViewUrl", ""),
+        "duration": round(track.get("trackTimeMillis", 0) / 1000),
+    } for track in tracks]
+
+
+def walk_json(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from walk_json(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from walk_json(child)
+
+
+def runs_text(value: dict) -> str:
+    return "".join(run.get("text", "") for run in value.get("runs", [])) or value.get("simpleText", "")
+
+
+def youtube_search(query: str) -> list[dict]:
+    # Anonymous Innertube request used by the YouTube Music web client. The
+    # filter limits results to songs rather than videos/playlists/artists.
+    data = post_json(
+        "https://music.youtube.com/youtubei/v1/search?alt=json&key="
+        "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30",
+        {
+            "query": query,
+            "params": "EgWKAQIIAWoMEA4QChADEAQQCRAF",
+            "context": {"client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20260701.01.00",
+                "hl": "en",
+                "gl": "US",
+            }, "user": {}},
+        },
+    )
     results = []
-    for track in data.get("results", []):
+    seen = set()
+    for node in walk_json(data):
+        renderer = node.get("musicResponsiveListItemRenderer")
+        if not renderer:
+            continue
+        endpoint = renderer.get("overlay", {}).get("musicItemThumbnailOverlayRenderer", {}).get(
+            "content", {}).get("musicPlayButtonRenderer", {}).get("playNavigationEndpoint", {})
+        video_id = endpoint.get("watchEndpoint", {}).get("videoId", "")
+        columns = renderer.get("flexColumns", [])
+        texts = [runs_text(column.get("musicResponsiveListItemFlexColumnRenderer", {}).get("text", {})) for column in columns]
+        if not video_id or video_id in seen or not texts:
+            continue
+        seen.add(video_id)
+        thumbnails = renderer.get("thumbnail", {}).get("musicThumbnailRenderer", {}).get("thumbnail", {}).get("thumbnails", [])
+        secondary_runs = columns[1].get("musicResponsiveListItemFlexColumnRenderer", {}).get("text", {}).get("runs", []) if len(columns) > 1 else []
+        secondary = [run.get("text", "") for run in secondary_runs if run.get("text") not in ("", " • ")]
         results.append({
-            "title": track.get("trackName", ""),
-            "artist": track.get("artistName", ""),
-            "album": track.get("collectionName", ""),
-            "artwork": track.get("artworkUrl100", "").replace("100x100", "200x200"),
-            "url": track.get("trackViewUrl", ""),
-            "duration": round(track.get("trackTimeMillis", 0) / 1000),
+            "title": texts[0], "artist": secondary[0] if secondary else "YouTube Music",
+            "album": secondary[1] if len(secondary) > 1 else "", "artwork": thumbnails[-1].get("url", "") if thumbnails else "",
+            "url": f"https://music.youtube.com/watch?v={video_id}", "duration": 0,
         })
-    print(json.dumps({"query": query, "results": results}, ensure_ascii=False), flush=True)
+        if len(results) == 8:
+            break
+    return results
+
+
+def deezer_search(query: str) -> list[dict]:
+    params = urllib.parse.urlencode({
+        "q": query,
+        "limit": 8,
+    })
+    tracks = fetch_json(f"https://api.deezer.com/search?{params}").get("data", [])
+    return [{
+        "title": track.get("title", ""), "artist": track.get("artist", {}).get("name", ""),
+        "album": track.get("album", {}).get("title", ""), "artwork": track.get("album", {}).get("cover_medium", ""),
+        "url": track.get("link", ""), "duration": track.get("duration", 0),
+    } for track in tracks]
+
+
+def search(query: str, provider: str) -> None:
+    searcher = {"spotify": spotify_search, "youtube": youtube_search, "deezer": deezer_search}[provider]
+    try:
+        results = searcher(query)
+    except Exception:
+        # Spotify's anonymous token and YouTube Music's page data are not
+        # available in every region. Keep the request provider-specific: the
+        # fallback opens that provider's own search instead of mixing in iTunes
+        # or another catalogue.
+        labels = {"spotify": "Spotify", "youtube": "YouTube Music", "deezer": "Deezer"}
+        results = [{
+            "title": query,
+            "artist": f"Search on {labels[provider]}",
+            "album": "",
+            "artwork": "",
+            "url": fallback_url(provider, query),
+            "duration": 0,
+        }]
+    for result in results:
+        result["provider"] = provider
+    print(json.dumps({"query": query, "provider": provider, "results": results}, ensure_ascii=False), flush=True)
     subprocess.Popen(
         [sys.executable, __file__, "prefetch", provider, json.dumps(results, ensure_ascii=False)],
         stdout=subprocess.DEVNULL,
@@ -150,6 +268,10 @@ def open_spotify(target: str, query: str) -> None:
 
 def play(provider: str, url: str, artist: str, title: str) -> None:
     query = f"{artist} {title}".strip()
+    if provider == "spotify" and not shutil.which("spotify"):
+        subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        print(json.dumps({"ok": True, "target": url}))
+        return
     try:
         target = resolve_target(provider, url, query)
     except Exception:

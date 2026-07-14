@@ -66,9 +66,10 @@ Item {
     }
 
     function play(track): void {
+        const trackProvider = track.provider ?? provider.key;
         playProcess.command = [
             "python3", `${Quickshell.shellDir}/scripts/music_search.py`, "play",
-            provider.key, track.url, track.artist, track.title
+            trackProvider, track.url, track.artist, track.title
         ];
         playProcess.running = true;
         close();
@@ -152,17 +153,11 @@ Item {
                         anchors.left: parent.left
                         anchors.leftMargin: Tokens.padding.medium
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.loading ? "progress_activity" : "search"
+                        // Keep the glyph static. Stopping a rotating font glyph between
+                        // frames left it rasterised at a random angle on some GPUs.
+                        text: "search"
                         color: Colours.palette.m3onSurfaceVariant
                         fontStyle: Tokens.font.icon.medium
-
-                        RotationAnimation on rotation {
-                            running: root.loading
-                            from: 0
-                            to: 360
-                            duration: 900
-                            loops: Animation.Infinite
-                        }
                     }
 
                     StyledTextField {
@@ -203,7 +198,9 @@ Item {
                     verticalPadding: Tokens.padding.small
                     menu.onItemSelected: item => {
                         root.provider = item as SearchProvider;
-                        root.prefetchResults();
+                        root.results = [];
+                        searchDelay.stop();
+                        root.runSearch();
                     }
                 }
 
@@ -325,12 +322,14 @@ Item {
 
         stdout: StdioCollector {
             onStreamFinished: {
-                root.loading = false;
                 try {
                     const data = JSON.parse(text);
-                    if (data.query === query.text.trim())
+                    if (data.query === query.text.trim() && data.provider === root.provider.key) {
+                        root.loading = false;
                         root.results = data.results ?? [];
+                    }
                 } catch (error) {
+                    root.loading = false;
                     root.results = [];
                 }
             }
