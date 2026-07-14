@@ -112,8 +112,8 @@ Item {
 
         anchors.centerIn: parent
         anchors.verticalCenterOffset: root.opened ? 0 : Tokens.spacing.large
-        implicitWidth: Math.min(root.width - Tokens.padding.extraLarge * 2, 720)
-        implicitHeight: Math.min(root.height - Tokens.padding.extraLarge * 2, 340)
+        implicitWidth: Math.max(1, root.width - Tokens.padding.extraLarge * 2)
+        implicitHeight: Math.max(1, root.height - Tokens.padding.extraLarge * 2)
         radius: Tokens.rounding.extraLarge
         color: Colours.palette.m3surfaceContainerHigh
         scale: root.opened ? 1 : 0.92
@@ -198,7 +198,7 @@ Item {
                     type: SplitButton.Tonal
                     active: root.provider
                     menuItems: root.providers
-                    minLeftWidth: 120
+                    minLeftWidth: Math.min(120, root.width * 0.14)
                     horizontalPadding: Tokens.padding.small
                     verticalPadding: Tokens.padding.small
                     menu.onItemSelected: item => {

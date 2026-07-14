@@ -233,9 +233,25 @@ PY
 touch "$STATE_DIR/installed"
 chmod 755 "$repository/install.sh" "$repository/uninstall.sh" "$repository/src/scripts/music_search.py"
 
+stop_caelestia_instances() {
+    local quickshell_command instance
+    quickshell_command=$(command -v quickshell || command -v qs || true)
+    [[ -n "$quickshell_command" ]] || return 0
+    while IFS= read -r instance; do
+        [[ -n "$instance" ]] || continue
+        "$quickshell_command" kill --id "$instance" --any-display >/dev/null 2>&1 || true
+    done < <(
+        "$quickshell_command" list --all 2>/dev/null \
+            | awk '/^Instance / { id=$2; sub(":$", "", id) } /Config path: .*\/caelestia\/shell.qml$/ { print id }'
+    )
+}
+
+stop_caelestia_instances
 if command -v caelestia >/dev/null 2>&1; then
-    caelestia shell -k >/dev/null 2>&1 || true
     caelestia shell -d >/dev/null 2>&1 || true
+else
+    quickshell_command=$(command -v quickshell || command -v qs || true)
+    [[ -z "$quickshell_command" ]] || "$quickshell_command" -d -c caelestia >/dev/null 2>&1 || true
 fi
 
 echo ""

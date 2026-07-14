@@ -11,6 +11,7 @@ A focused media-player enhancement for [Caelestia Shell](https://github.com/cael
 - Navigate results with the keyboard and play with `Enter`.
 - Control the active player's volume through MPRIS.
 - Smooth opening and closing animations with rounded result cards and artwork.
+- Responsive search layout that follows Caelestia's own container size and display scale.
 
 ## How search works
 
@@ -61,7 +62,7 @@ The installer:
 5. Installs only the modified dashboard and search files.
 6. Applies the minimal keyboard-focus integration required by the modal.
 7. Stores installation state under `${XDG_STATE_HOME:-~/.local/state}/caelestia-music-search`.
-8. Restarts Caelestia Shell when the `caelestia` command is available.
+8. Stops every old Caelestia instance, regardless of whether it was loaded from `/etc` or the user overlay, and starts exactly one replacement instance.
 
 ## Uninstall
 
