@@ -13,6 +13,19 @@ ColumnLayout {
     id: root
 
     signal searchRequested(string initialText)
+    property var fallbackTrack: null
+
+    readonly property bool fallbackMatches: {
+        const activeTitle = (Players.active?.trackTitle ?? "").trim().toLowerCase();
+        const selectedTitle = (fallbackTrack?.title ?? "").trim().toLowerCase();
+        return activeTitle.length > 0 && activeTitle === selectedTitle;
+    }
+    readonly property real effectiveLength: {
+        const mprisLength = Players.active?.length ?? 0;
+        if (mprisLength > 0)
+            return mprisLength;
+        return fallbackMatches ? (fallbackTrack?.duration ?? 0) : 0;
+    }
 
     function lengthStr(length: int): string {
         if (length < 0)
@@ -85,7 +98,7 @@ ColumnLayout {
         TextMetrics {
             id: timeMetrics
 
-            text: Players.active ? root.lengthStr(Math.max(Players.active.position, Players.active.length)).replace(/[1-9]/g, "0") : "00:00"
+            text: Players.active ? root.lengthStr(Math.max(Players.active.position, root.effectiveLength)).replace(/[1-9]/g, "0") : "00:00"
             font: Tokens.font.label.medium
         }
 
@@ -103,7 +116,7 @@ ColumnLayout {
             id: positionSlider
 
             Layout.fillWidth: true
-            value: Players.active ? Players.active.position / (Players.active.length || 1) : 0
+            value: Players.active ? Players.active.position / (root.effectiveLength || 1) : 0
             enabled: Players.active?.canSeek ?? false
             wavy: true
             animateWave: Players.active?.isPlaying ?? false
@@ -112,21 +125,21 @@ ColumnLayout {
             interactionOnMove: false
             onInteraction: value => {
                 const active = Players.active;
-                if (active?.canSeek && active?.positionSupported)
+                if (active?.canSeek && active?.positionSupported && active.length > 0)
                     active.position = value * active.length;
             }
 
             Binding {
                 target: positionLabel
                 property: "text"
-                value: root.lengthStr(positionSlider.pos * (Players.active?.length ?? 0))
+                value: root.lengthStr(positionSlider.pos * root.effectiveLength)
                 when: positionSlider.dragging
             }
         }
 
         StyledText {
             Layout.preferredWidth: timeMetrics.width
-            text: root.lengthStr(Players.active?.length ?? -1)
+            text: root.effectiveLength > 0 ? root.lengthStr(root.effectiveLength) : "--:--"
             color: Colours.palette.m3onSurfaceVariant
             font: Tokens.font.label.medium
             horizontalAlignment: Text.AlignHCenter

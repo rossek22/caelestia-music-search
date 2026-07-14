@@ -13,6 +13,8 @@ import qs.services
 Item {
     id: root
 
+    signal trackPlayed(var track)
+
     property bool opened
     property bool loading
     property var results: []
@@ -66,6 +68,7 @@ Item {
     }
 
     function play(track): void {
+        trackPlayed(track);
         const trackProvider = track.provider ?? provider.key;
         playProcess.command = [
             "python3", `${Quickshell.shellDir}/scripts/music_search.py`, "play",
@@ -100,7 +103,8 @@ Item {
 
     StyledRect {
         anchors.fill: parent
-        color: Qt.alpha(Colours.palette.m3scrim, 0.72)
+        // Keep the dashboard visible and tint it with the active system theme.
+        color: Qt.alpha(Colours.palette.m3scrim, 0.42)
 
         MouseArea {
             anchors.fill: parent

@@ -4,12 +4,19 @@ import QtQuick.Layouts
 import M3Shapes
 import Caelestia.Config
 import qs.components
+import qs.components.effects
 import qs.services
 
 Item {
     id: root
 
     required property DrawerVisibilities visibilities
+    property var searchedTrack: null
+    readonly property bool searchedTrackMatches: {
+        const activeTitle = (Players.active?.trackTitle ?? "").trim().toLowerCase();
+        const selectedTitle = (searchedTrack?.title ?? "").trim().toLowerCase();
+        return activeTitle.length > 0 && activeTitle === selectedTitle;
+    }
 
     implicitWidth: Tokens.sizes.dashboard.mediaTabWidth
     implicitHeight: Tokens.sizes.dashboard.mediaTabHeight
@@ -23,9 +30,36 @@ Item {
         anchors.margins: Tokens.padding.large
         spacing: Tokens.spacing.extraLarge
 
-        CoverVisualiser {
+        Item {
             Layout.fillHeight: true
             implicitWidth: Tokens.sizes.dashboard.mediaSectionWidth
+
+            CoverVisualiser {
+                anchors.fill: parent
+            }
+
+            MaterialShape {
+                id: searchedArtworkMask
+
+                anchors.centerIn: parent
+                implicitSize: Tokens.sizes.dashboard.mediaCoverArtSize
+                shape: MaterialShape.Cookie9Sided
+                color: Colours.palette.m3surfaceContainerHighest
+                visible: root.searchedTrackMatches && (root.searchedTrack?.artwork ?? "") !== ""
+                layer.enabled: true
+            }
+
+            Image {
+                anchors.fill: searchedArtworkMask
+                source: root.searchedTrackMatches ? (root.searchedTrack?.artwork ?? "") : ""
+                asynchronous: true
+                cache: true
+                fillMode: Image.PreserveAspectCrop
+                sourceSize: Qt.size(width * 2, height * 2)
+                visible: status === Image.Ready
+                layer.enabled: true
+                layer.effect: Mask { maskSource: searchedArtworkMask }
+            }
         }
 
         Item {
@@ -110,6 +144,7 @@ Item {
 
                     Details {
                         Layout.fillWidth: true
+                        fallbackTrack: root.searchedTrack
                         onSearchRequested: initialText => searchOverlay.open(initialText)
                     }
 
@@ -125,5 +160,6 @@ Item {
     SearchOverlay {
         id: searchOverlay
         anchors.fill: parent
+        onTrackPlayed: track => root.searchedTrack = track
     }
 }

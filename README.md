@@ -17,9 +17,9 @@ A focused media-player enhancement for [Caelestia Shell](https://github.com/cael
 
 Search results now come from the selected provider rather than from a shared catalogue. If a provider blocks anonymous catalogue access in the current region, the result opens that provider's own search page; results are never silently taken from another service.
 
-- Spotify uses iTunes metadata for its result list. With the Spotify desktop client installed, the selected result is resolved to Spotify and sent to the client through MPRIS; without the client, its iTunes page opens.
-- YouTube Music searches its own song catalogue through the web client's Innertube endpoint and opens the selected `/watch?v=...` URL.
-- Deezer searches its catalogue directly and opens the exact track URL.
+- Spotify uses iTunes metadata for its result list. The selected result is always resolved back to Spotify: an installed native or Flatpak client receives it through MPRIS/Spotify URI, otherwise `open.spotify.com` opens in the browser and reuses its existing login session.
+- YouTube Music searches its own song catalogue through the web client's Innertube endpoint and opens the selected `/watch?v=...` URL with autoplay enabled.
+- Deezer searches its catalogue directly and opens the exact track URL with its autoplay hint. A browser may still require one click when its media-autoplay policy blocks the site.
 
 YouTube Music and Deezer use HTTPS links, so the desktop opens an installed handler when available and otherwise falls back to the browser.
 

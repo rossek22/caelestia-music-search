@@ -89,12 +89,12 @@ def resolve_target(provider: str, url: str, query: str) -> str:
         "deezer": "deezer.com/",
     }
     if native_hosts[provider] in url:
-        return url
+        return playback_url(provider, url)
 
     key = cache_key(provider, url)
     cache = load_cache()
     if cache.get(key):
-        return cache[key]
+        return playback_url(provider, cache[key])
 
     target = {
         "spotify": lambda: spotify_url(url),
@@ -104,7 +104,22 @@ def resolve_target(provider: str, url: str, query: str) -> str:
     if target:
         cache[key] = target
         save_cache(cache)
-    return target
+    return playback_url(provider, target)
+
+
+def playback_url(provider: str, url: str) -> str:
+    """Add the provider's opt-in playback flag without losing URL parameters."""
+    if not url or provider == "spotify":
+        return url
+    parsed = urllib.parse.urlsplit(url)
+    query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    if provider == "youtube" and "/watch" in parsed.path:
+        query["autoplay"] = "1"
+    elif provider == "deezer" and "/track/" in parsed.path:
+        # Honoured by Deezer clients and some web-player versions. Browsers may
+        # still require one click when their own media autoplay policy blocks it.
+        query["autoplay"] = "true"
+    return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def fallback_url(provider: str, query: str) -> str:
@@ -157,6 +172,21 @@ def runs_text(value: dict) -> str:
     return "".join(run.get("text", "") for run in value.get("runs", [])) or value.get("simpleText", "")
 
 
+def parse_duration(values: list[str]) -> int:
+    for value in reversed(values):
+        if not re.fullmatch(r"\d{1,2}:\d{2}(?::\d{2})?", value):
+            continue
+        parts = [int(part) for part in value.split(":")]
+        return sum(part * (60 ** index) for index, part in enumerate(reversed(parts)))
+    return 0
+
+
+def youtube_artwork(video_id: str) -> str:
+    # The search response often contains a 60–120 px thumbnail. YouTube's
+    # canonical high-quality endpoint avoids scaling that tiny image in QML.
+    return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
+
 def youtube_search(query: str) -> list[dict]:
     # Anonymous Innertube request used by the YouTube Music web client. The
     # filter limits results to songs rather than videos/playlists/artists.
@@ -188,13 +218,13 @@ def youtube_search(query: str) -> list[dict]:
         if not video_id or video_id in seen or not texts:
             continue
         seen.add(video_id)
-        thumbnails = renderer.get("thumbnail", {}).get("musicThumbnailRenderer", {}).get("thumbnail", {}).get("thumbnails", [])
         secondary_runs = columns[1].get("musicResponsiveListItemFlexColumnRenderer", {}).get("text", {}).get("runs", []) if len(columns) > 1 else []
         secondary = [run.get("text", "") for run in secondary_runs if run.get("text") not in ("", " • ")]
         results.append({
             "title": texts[0], "artist": secondary[0] if secondary else "YouTube Music",
-            "album": secondary[1] if len(secondary) > 1 else "", "artwork": thumbnails[-1].get("url", "") if thumbnails else "",
-            "url": f"https://music.youtube.com/watch?v={video_id}", "duration": 0,
+            "album": secondary[1] if len(secondary) > 1 and not re.fullmatch(r"\d{1,2}:\d{2}(?::\d{2})?", secondary[1]) else "",
+            "artwork": youtube_artwork(video_id),
+            "url": f"https://music.youtube.com/watch?v={video_id}", "duration": parse_duration(secondary),
         })
         if len(results) == 8:
             break
@@ -209,7 +239,7 @@ def deezer_search(query: str) -> list[dict]:
     tracks = fetch_json(f"https://api.deezer.com/search?{params}").get("data", [])
     return [{
         "title": track.get("title", ""), "artist": track.get("artist", {}).get("name", ""),
-        "album": track.get("album", {}).get("title", ""), "artwork": track.get("album", {}).get("cover_medium", ""),
+        "album": track.get("album", {}).get("title", ""), "artwork": track.get("album", {}).get("cover_xl", "") or track.get("album", {}).get("cover_big", ""),
         "url": track.get("link", ""), "duration": track.get("duration", 0),
     } for track in tracks]
 
@@ -243,6 +273,20 @@ def search(query: str, provider: str) -> None:
     )
 
 
+def spotify_client_available() -> bool:
+    if shutil.which("spotify"):
+        return True
+    if shutil.which("flatpak"):
+        result = subprocess.run(
+            ["flatpak", "info", "com.spotify.Client"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            return True
+    return False
+
+
 def open_spotify(target: str, query: str) -> None:
     if "/track/" in target:
         track_id = target.split("/track/", 1)[1].split("?", 1)[0]
@@ -250,7 +294,7 @@ def open_spotify(target: str, query: str) -> None:
     else:
         uri = "spotify:search:" + query
 
-    if not shutil.which("spotify"):
+    if not spotify_client_available():
         subprocess.Popen(["xdg-open", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return
 
@@ -263,15 +307,19 @@ def open_spotify(target: str, query: str) -> None:
     ]
     result = subprocess.run(call, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode != 0:
-        subprocess.Popen(["spotify", f"--uri={uri}"], start_new_session=True)
+        if shutil.which("spotify"):
+            subprocess.Popen(["spotify", f"--uri={uri}"], start_new_session=True)
+        else:
+            subprocess.Popen(
+                ["flatpak", "run", "com.spotify.Client", f"--uri={uri}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
 
 
 def play(provider: str, url: str, artist: str, title: str) -> None:
     query = f"{artist} {title}".strip()
-    if provider == "spotify" and not shutil.which("spotify"):
-        subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        print(json.dumps({"ok": True, "target": url}))
-        return
     try:
         target = resolve_target(provider, url, query)
     except Exception:
