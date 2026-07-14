@@ -6,15 +6,19 @@ CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
 STATE_HOME=${XDG_STATE_HOME:-"$HOME/.local/state"}
 SHELL_DIR=${CAELESTIA_SHELL_DIR:-"$CONFIG_HOME/quickshell/caelestia"}
 STATE_DIR="$STATE_HOME/caelestia-music-search"
-DASHBOARD="$SHELL_DIR/modules/dashboard"
-CONTENT_WINDOW="$SHELL_DIR/modules/drawers/ContentWindow.qml"
 
 if [[ ! -e "$STATE_DIR/installed" ]]; then
     echo "Caelestia Music Search is not installed."
     exit 0
 fi
 
-python3 - "$CONTENT_WINDOW" <<'PY'
+dashboard="$SHELL_DIR/modules/dashboard"
+drawers="$SHELL_DIR/modules/drawers"
+scripts="$SHELL_DIR/scripts"
+content_window="$drawers/ContentWindow.qml"
+
+if [[ -f "$content_window" ]]; then
+    python3 - "$content_window" <<'PY'
 from pathlib import Path
 import sys
 
@@ -26,32 +30,54 @@ text = text.replace(" || (root.dashboardSearchActive && visibilities.dashboard)"
 text = text.replace("            root.dashboardSearchActive = false;\n", "", 1)
 path.write_text(text)
 PY
-
-mode=$(<"$STATE_DIR/dashboard-mode")
-if [[ "$mode" == "symlink" ]]; then
-    source_path=$(<"$STATE_DIR/dashboard-source")
-    rm -rf "$DASHBOARD"
-    ln -s "$source_path" "$DASHBOARD"
-else
-    rm -f "$DASHBOARD/Media.qml" "$DASHBOARD/media/Details.qml" "$DASHBOARD/media/SearchOverlay.qml"
-    if [[ -e "$STATE_DIR/backed-up-files" ]]; then
-        while IFS= read -r relative; do
-            mkdir -p "$DASHBOARD/$(dirname "$relative")"
-            cp -a "$STATE_DIR/backups/$relative" "$DASHBOARD/$relative"
-        done < "$STATE_DIR/backed-up-files"
-    fi
 fi
 
-if [[ -e "$STATE_DIR/had-search-helper" ]]; then
-    cp -a "$STATE_DIR/backups/music_search.py" "$SHELL_DIR/scripts/music_search.py"
-else
-    rm -f "$SHELL_DIR/scripts/music_search.py"
+rm -f "$dashboard/Media.qml" "$dashboard/media/Details.qml" "$dashboard/media/SearchOverlay.qml" "$scripts/music_search.py"
+
+if [[ -f "$STATE_DIR/backed-up-files" ]]; then
+    while IFS= read -r relative; do
+        case "$relative" in
+            dashboard/*) destination="$SHELL_DIR/modules/$relative" ;;
+            drawers/*) destination="$SHELL_DIR/modules/$relative" ;;
+            scripts/*) destination="$SHELL_DIR/$relative" ;;
+            *) continue ;;
+        esac
+        mkdir -p "$(dirname -- "$destination")"
+        rm -f "$destination"
+        cp -a "$STATE_DIR/backups/$relative" "$destination"
+    done < "$STATE_DIR/backed-up-files"
+fi
+
+restore_directory() {
+    local name=$1 target=$2 mode source
+    [[ -f "$STATE_DIR/$name-mode" ]] || return 0
+    mode=$(<"$STATE_DIR/$name-mode")
+    case "$mode" in
+        symlink)
+            source=$(<"$STATE_DIR/$name-source")
+            rm -rf "$target"
+            ln -s "$source" "$target"
+            ;;
+        absent)
+            rm -rf "$target"
+            ;;
+        directory) ;;
+    esac
+}
+
+restore_directory dashboard-media "$dashboard/media"
+restore_directory dashboard "$dashboard"
+restore_directory drawers "$drawers"
+restore_directory scripts "$scripts"
+
+if [[ -e "$STATE_DIR/created-shell-overlay" ]]; then
+    rm -rf "$SHELL_DIR"
 fi
 rm -rf "$STATE_DIR"
 
-if quickshell list --all 2>/dev/null | grep -q 'Config path:.*caelestia/shell.qml'; then
+if command -v caelestia >/dev/null 2>&1; then
     caelestia shell -k >/dev/null 2>&1 || true
-    caelestia shell -d >/dev/null 2>&1
+    caelestia shell -d >/dev/null 2>&1 || true
 fi
 
 echo "Caelestia Music Search uninstalled successfully."

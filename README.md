@@ -39,7 +39,7 @@ Songlink's public `v1-alpha.1` endpoint is scheduled for retirement on July 31, 
 Install directly with curl:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rossek22/caelestia-music-search/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rossek22/caelestia-music-search/main/install.sh | bash
 ```
 
 Or clone the repository manually:
@@ -50,22 +50,26 @@ cd caelestia-music-search
 ./install.sh
 ```
 
+The same command updates an existing remote installation. A remote install is kept at `~/.local/share/caelestia-music-search` by default; override it with `CAELESTIA_MUSIC_SEARCH_ROOT`.
+
 The installer:
 
-1. Locates the active Caelestia configuration.
-2. Preserves the distribution-provided symlink layout.
-3. Installs only the modified dashboard and search files.
-4. Applies the minimal keyboard-focus integration required by the modal.
-5. Stores installation state under `${XDG_STATE_HOME:-~/.local/state}/caelestia-music-search`.
-6. Restarts Caelestia Shell when it is running.
+1. Detects a local checkout or bootstraps the repository from GitHub.
+2. Locates Caelestia in the user configuration, `/etc/xdg`, or `/usr/share`.
+3. Creates a user overlay when Caelestia is installed system-wide only.
+4. Preserves the distribution-provided symlink layout.
+5. Installs only the modified dashboard and search files.
+6. Applies the minimal keyboard-focus integration required by the modal.
+7. Stores installation state under `${XDG_STATE_HOME:-~/.local/state}/caelestia-music-search`.
+8. Restarts Caelestia Shell when the `caelestia` command is available.
 
 ## Uninstall
 
 ```bash
-./uninstall.sh
+curl -fsSL https://raw.githubusercontent.com/rossek22/caelestia-music-search/main/uninstall.sh | bash
 ```
 
-The uninstaller restores the previous files or the original system dashboard symlink and removes only the keyboard-focus changes made by the installer.
+From a local checkout, `./uninstall.sh` works as well. The uninstaller restores previous files and original system symlinks, then removes only the keyboard-focus changes made by the installer.
 
 ## License
 

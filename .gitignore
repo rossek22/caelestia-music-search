@@ -2,7 +2,6 @@
 !.gitignore
 !LICENSE
 !README.md
-!bootstrap.sh
 !install.sh
 !uninstall.sh
 !src/
