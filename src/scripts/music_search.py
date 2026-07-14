@@ -108,7 +108,6 @@ def resolve_target(provider: str, url: str, query: str) -> str:
 
 
 def playback_url(provider: str, url: str) -> str:
-    """Add the provider's opt-in playback flag without losing URL parameters."""
     if not url or provider == "spotify":
         return url
     parsed = urllib.parse.urlsplit(url)
@@ -116,8 +115,6 @@ def playback_url(provider: str, url: str) -> str:
     if provider == "youtube" and "/watch" in parsed.path:
         query["autoplay"] = "1"
     elif provider == "deezer" and "/track/" in parsed.path:
-        # Honoured by Deezer clients and some web-player versions. Browsers may
-        # still require one click when their own media autoplay policy blocks it.
         query["autoplay"] = "true"
     return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
 
@@ -182,8 +179,6 @@ def parse_duration(values: list[str]) -> int:
 
 
 def youtube_artwork(video_id: str) -> str:
-    # The search response often contains a 60–120 px thumbnail. YouTube's
-    # canonical high-quality endpoint avoids scaling that tiny image in QML.
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
 

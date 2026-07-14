@@ -47,6 +47,16 @@ Item {
                 color: Colours.palette.m3surfaceContainerHighest
                 visible: root.searchedTrackMatches && (root.searchedTrack?.artwork ?? "") !== ""
                 layer.enabled: true
+
+                Anim on rotation {
+                    running: true
+                    paused: !Players.active?.isPlaying
+                    from: 360
+                    to: 0
+                    duration: 23500
+                    easing.type: Easing.Linear
+                    loops: Animation.Infinite
+                }
             }
 
             Image {

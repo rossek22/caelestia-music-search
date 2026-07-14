@@ -103,7 +103,6 @@ Item {
 
     StyledRect {
         anchors.fill: parent
-        // Keep the dashboard visible and tint it with the active system theme.
         color: Qt.alpha(Colours.palette.m3scrim, 0.42)
 
         MouseArea {
