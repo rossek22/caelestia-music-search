@@ -4,7 +4,6 @@ import QtQuick.Layouts
 import M3Shapes
 import Caelestia.Config
 import qs.components
-import qs.components.effects
 import qs.services
 
 Item {
@@ -12,11 +11,6 @@ Item {
 
     required property DrawerVisibilities visibilities
     property var searchedTrack: null
-    readonly property bool searchedTrackMatches: {
-        const activeTitle = (Players.active?.trackTitle ?? "").trim().toLowerCase();
-        const selectedTitle = (searchedTrack?.title ?? "").trim().toLowerCase();
-        return activeTitle.length > 0 && activeTitle === selectedTitle;
-    }
 
     implicitWidth: Tokens.sizes.dashboard.mediaTabWidth
     implicitHeight: Tokens.sizes.dashboard.mediaTabHeight
@@ -30,46 +24,9 @@ Item {
         anchors.margins: Tokens.padding.large
         spacing: Tokens.spacing.extraLarge
 
-        Item {
+        CoverVisualiser {
             Layout.fillHeight: true
             implicitWidth: Tokens.sizes.dashboard.mediaSectionWidth
-
-            CoverVisualiser {
-                anchors.fill: parent
-            }
-
-            MaterialShape {
-                id: searchedArtworkMask
-
-                anchors.centerIn: parent
-                implicitSize: Tokens.sizes.dashboard.mediaCoverArtSize
-                shape: MaterialShape.Cookie9Sided
-                color: Colours.palette.m3surfaceContainerHighest
-                visible: root.searchedTrackMatches && (root.searchedTrack?.artwork ?? "") !== ""
-                layer.enabled: true
-
-                Anim on rotation {
-                    running: true
-                    paused: !Players.active?.isPlaying
-                    from: 360
-                    to: 0
-                    duration: 23500
-                    easing.type: Easing.Linear
-                    loops: Animation.Infinite
-                }
-            }
-
-            Image {
-                anchors.fill: searchedArtworkMask
-                source: root.searchedTrackMatches ? (root.searchedTrack?.artwork ?? "") : ""
-                asynchronous: true
-                cache: true
-                fillMode: Image.PreserveAspectCrop
-                sourceSize: Qt.size(width * 2, height * 2)
-                visible: status === Image.Ready
-                layer.enabled: true
-                layer.effect: Mask { maskSource: searchedArtworkMask }
-            }
         }
 
         Item {
