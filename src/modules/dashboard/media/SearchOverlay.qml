@@ -60,7 +60,7 @@ Item {
             return;
         }
         searchProcess.running = false;
-        searchProcess.command = ["python3", `${Quickshell.shellDir}/scripts/music_search.py`, "search", text];
+        searchProcess.command = ["python3", `${Quickshell.shellDir}/scripts/music_search.py`, "search", text, provider.key];
         loading = true;
         searchProcess.running = true;
     }
@@ -72,6 +72,17 @@ Item {
         ];
         playProcess.running = true;
         close();
+    }
+
+    function prefetchResults(): void {
+        if (results.length === 0)
+            return;
+        prefetchProcess.running = false;
+        prefetchProcess.command = [
+            "python3", `${Quickshell.shellDir}/scripts/music_search.py`, "prefetch",
+            provider.key, JSON.stringify(results)
+        ];
+        prefetchProcess.running = true;
     }
 
     anchors.fill: parent
@@ -190,7 +201,10 @@ Item {
                     minLeftWidth: 120
                     horizontalPadding: Tokens.padding.small
                     verticalPadding: Tokens.padding.small
-                    menu.onItemSelected: item => root.provider = item as SearchProvider
+                    menu.onItemSelected: item => {
+                        root.provider = item as SearchProvider;
+                        root.prefetchResults();
+                    }
                 }
 
                 IconButton {
@@ -327,6 +341,12 @@ Item {
 
     Process {
         id: playProcess
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+    }
+
+    Process {
+        id: prefetchProcess
         stdout: StdioCollector {}
         stderr: StdioCollector {}
     }
